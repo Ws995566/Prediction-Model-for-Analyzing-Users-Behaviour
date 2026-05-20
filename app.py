@@ -485,6 +485,387 @@ def inject_global_css():
         font-weight: 800;
     }
     .placeholder-box h3 { color: var(--text-primary); font-size: 2.5rem; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DECORATIVE CSS SHAPES — Pure CSS, No External Assets
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* ── 1. HERO BANNER: Comic burst star (top-right) ────────────── */
+    .neo-hero {
+        position: relative;
+        overflow: visible;
+    }
+    .neo-hero::before {
+        content: '';
+        position: absolute;
+        top: -18px;
+        right: -18px;
+        width: 50px;
+        height: 50px;
+        background: var(--yellow);
+        border: 4px solid #000;
+        transform: rotate(45deg);
+        z-index: 2;
+        box-shadow: 3px 3px 0px #000;
+    }
+    .neo-hero::after {
+        content: '';
+        position: absolute;
+        bottom: -12px;
+        left: 30px;
+        width: 60px;
+        height: 14px;
+        background: repeating-linear-gradient(
+            90deg, #000 0px, #000 8px, transparent 8px, transparent 16px
+        );
+        z-index: 2;
+    }
+
+    /* ── 2. SECTION TITLE: Diamond accent + arrow ────────────────── */
+    .neo-hero + div h2,
+    [class*="st-key-neo-"] h2 {
+        position: relative;
+    }
+    [class*="st-key-neo-"] > div > div > div:first-child::before {
+        content: '';
+        position: absolute;
+        top: 10px;
+        left: -14px;
+        width: 10px;
+        height: 10px;
+        background: var(--orange);
+        border: 3px solid #000;
+        transform: rotate(45deg);
+        z-index: 2;
+    }
+
+
+    /* ── 4. METRIC CARDS: Spark / corner accent ──────────────────── */
+    [data-testid="metric-container"] {
+        position: relative;
+        overflow: visible;
+    }
+    [data-testid="metric-container"]::before {
+        content: '';
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 18px;
+        height: 18px;
+        background: var(--pink);
+        border: 3px solid #000;
+        clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        z-index: 3;
+    }
+    [data-testid="metric-container"]::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: -6px;
+        width: 14px;
+        height: 14px;
+        background: #000;
+        border-radius: 50%;
+        z-index: 3;
+    }
+
+    /* ── 5. NEO CONTAINERS: Offset rectangle + dots ──────────────── */
+    [class*="st-key-neo-"] {
+        position: relative;
+        overflow: visible;
+    }
+    [class*="st-key-neo-"]::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 24px;
+        height: 24px;
+        border: 4px solid #000;
+        background: var(--yellow);
+        z-index: 3;
+    }
+    [class*="st-key-neo-"]::after {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 16px;
+        width: 8px;
+        height: 8px;
+        background: #000;
+        border-radius: 50%;
+        box-shadow:
+            16px 0 0 0 #000,
+            32px 0 0 0 #000;
+        z-index: 3;
+    }
+
+    /* ── 6. RESULT CARD: Double-border offset rectangle ──────────── */
+    .neo-result {
+        position: relative;
+        overflow: visible;
+    }
+    .neo-result::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: -10px;
+        right: -10px;
+        bottom: -10px;
+        border: 3px dashed #000;
+        z-index: -1;
+        pointer-events: none;
+    }
+    .neo-result::after {
+        content: '';
+        position: absolute;
+        top: -16px;
+        right: 20px;
+        width: 0;
+        height: 0;
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-bottom: 20px solid #000;
+        z-index: 3;
+    }
+
+    /* ── 7. EXPANDER: Small arrow accent ─────────────────────────── */
+    [data-testid="stExpander"] {
+        position: relative;
+        overflow: visible;
+    }
+    [data-testid="stExpander"]::after {
+        content: '';
+        position: absolute;
+        top: -5px;
+        left: -5px;
+        width: 12px;
+        height: 12px;
+        background: var(--mint);
+        border: 3px solid #000;
+        transform: rotate(45deg);
+        z-index: 3;
+    }
+
+    /* ── 8. NEO CARD: Corner cross / plus sign ───────────────────── */
+    .neo-card {
+        position: relative;
+        overflow: visible;
+    }
+    .neo-card::before {
+        content: '+';
+        position: absolute;
+        top: -14px;
+        left: -14px;
+        width: 28px;
+        height: 28px;
+        background: var(--purple);
+        border: 3px solid #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        font-weight: 900;
+        line-height: 1;
+        z-index: 3;
+        font-family: 'IBM Plex Mono', monospace;
+    }
+
+    /* ── 9. FLOATING GEOMETRIC ACCENTS (on main viewport) ────────── */
+    [data-testid="stAppViewContainer"]::before {
+        content: '';
+        position: fixed;
+        top: 80px;
+        right: 30px;
+        width: 20px;
+        height: 20px;
+        background: var(--pink);
+        border: 3px solid #000;
+        transform: rotate(45deg);
+        z-index: 0;
+        opacity: 0.6;
+        animation: floatGeo 4s ease-in-out infinite alternate;
+        pointer-events: none;
+    }
+    [data-testid="stAppViewContainer"]::after {
+        content: '';
+        position: fixed;
+        bottom: 40px;
+        right: 60px;
+        width: 16px;
+        height: 16px;
+        border: 4px solid #000;
+        border-radius: 50%;
+        background: var(--lime);
+        z-index: 0;
+        opacity: 0.5;
+        animation: floatGeo 5s ease-in-out 1s infinite alternate;
+        pointer-events: none;
+    }
+
+    @keyframes floatGeo {
+        0% { transform: rotate(45deg) translateY(0px); }
+        100% { transform: rotate(45deg) translateY(-12px); }
+    }
+
+    /* ── 10. THICK LINE ACCENTS on file uploader ─────────────────── */
+    [data-testid="stFileUploader"]::before {
+        content: '';
+        position: absolute;
+        top: -4px;
+        left: 0;
+        right: 0;
+        height: 8px;
+        background: repeating-linear-gradient(
+            90deg, var(--orange) 0px, var(--orange) 12px, #000 12px, #000 16px
+        );
+        z-index: 3;
+    }
+    [data-testid="stFileUploader"] {
+        position: relative;
+        overflow: visible;
+    }
+
+    /* ── 11. TABS: Thick colored top-line per tab ────────────────── */
+    .stTabs [data-baseweb="tab"]::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: var(--mint);
+    }
+    .stTabs [aria-selected="true"]::after {
+        background: var(--yellow) !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        position: relative;
+    }
+
+    /* ── 12. BUTTON hover spark ──────────────────────────────────── */
+    button[kind="primary"]::after,
+    button[kind="secondary"]::after {
+        content: '\u2605';
+        position: absolute;
+        top: -18px;
+        right: -18px;
+        font-size: 2.5rem;
+        color: #FFFFFF;
+        -webkit-text-stroke: 3px #000000;
+        paint-order: stroke fill;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        pointer-events: none;
+        line-height: 1;
+    }
+    button[kind="primary"],
+    button[kind="secondary"] {
+        position: relative;
+        overflow: visible;
+    }
+    button[kind="primary"]:hover::after,
+    button[kind="secondary"]:hover::after {
+        opacity: 1;
+    }
+
+    /* ── 13. PROGRESS BAR: End-cap diamond ───────────────────────── */
+    .stProgress {
+        position: relative;
+    }
+    .stProgress::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: -10px;
+        width: 12px;
+        height: 12px;
+        background: var(--yellow);
+        border: 3px solid #000;
+        transform: translateY(-50%) rotate(45deg);
+        z-index: 3;
+    }
+
+    /* ── 14. BLINK CURSOR for hero title ─────────────────────────── */
+    .blink {
+        animation: blinker 1s step-end infinite;
+        font-family: 'IBM Plex Mono', monospace;
+    }
+    @keyframes blinker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+
+    /* ── 15. ALERTS: Thick left-bar accent ────────────────────────── */
+    .stAlert {
+        position: relative;
+        border-left: 12px solid #000 !important;
+    }
+    .stAlert::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 14px;
+        height: 14px;
+        background: var(--yellow);
+        border: 3px solid #000;
+        z-index: 3;
+    }
+
+    /* ── 16. HEARTBEAT BOX (About page) ──────────────────────────── */
+    .heartbeat-box {
+        background: var(--surface);
+        border: 4px solid #000;
+        padding: 1.5rem 2rem;
+        box-shadow: 8px 8px 0px #000;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    .heartbeat-box::before {
+        content: '';
+        position: absolute;
+        top: -8px;
+        left: 20px;
+        width: 16px;
+        height: 16px;
+        background: var(--pink);
+        border: 3px solid #000;
+        clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        z-index: 3;
+    }
+    .heartbeat-content {
+        font-weight: 600;
+        font-size: 1.1rem;
+        line-height: 1.7;
+    }
+
+    /* ── 17. CARD TITLE (section headers in About) ────────────────── */
+    .card-title {
+        font-family: 'Syne', sans-serif;
+        font-weight: 800;
+        font-size: 1.6rem;
+        text-transform: uppercase;
+        background: var(--yellow);
+        display: inline-block;
+        padding: 0.2rem 1rem;
+        border: 3px solid #000;
+        box-shadow: 4px 4px 0px #000;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    .card-title::after {
+        content: '';
+        position: absolute;
+        right: -10px;
+        top: 50%;
+        transform: translateY(-50%) rotate(45deg);
+        width: 10px;
+        height: 10px;
+        background: var(--orange);
+        border: 2px solid #000;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
