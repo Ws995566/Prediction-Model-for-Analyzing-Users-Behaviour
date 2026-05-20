@@ -85,8 +85,11 @@ def initialize_session_state():
         # Preprocessing pipeline state
         "pp_working_df": None,
         "pp_encoded": False,
+        "pp_enc_skipped": False,
         "pp_capped": False,
+        "pp_cap_skipped": False,
         "pp_skew_fixed": False,
+        "pp_yj_skipped": False,
         "pp_split_done": False,
         "pp_scaled": False,
         "pp_smote_done": False,
@@ -113,6 +116,11 @@ def initialize_session_state():
         "power_transformer": None,
         "label_encoder_visitor": None,
         "month_dummies_cols": None,
+        # Preprocessing artifacts for raw-input prediction
+        "pp_enc_method": None,       # "Label Encoding" or "Frequency Encoding"
+        "pp_freq_maps": None,        # dict of {col: {val: freq}} for frequency encoding
+        "pp_cap_bounds": None,       # dict of {col: upper_bound}
+        "pp_yj_columns": None,       # list of columns that were Yeo-Johnson transformed
         # Training
         "trained_model": None,
         "model_name": None,
@@ -155,7 +163,9 @@ def reset_downstream(from_step: int):
     if from_step <= STEP_PREPROCESS:
         for k in ("X_train", "X_test", "y_train", "y_test",
                    "scaler", "power_transformer",
-                   "label_encoder_visitor", "month_dummies_cols"):
+                   "label_encoder_visitor", "month_dummies_cols",
+                   "pp_enc_method", "pp_freq_maps",
+                   "pp_cap_bounds", "pp_yj_columns"):
             st.session_state[k] = None
     if from_step <= STEP_TRAINING:
         st.session_state.trained_model = None
@@ -1064,8 +1074,8 @@ def render_feature_selection():
             key="fs_confirm", disabled=len(selected) == 0, type="primary"):
                 st.session_state.selected_features = selected
                 st.session_state.engineered_data = df[selected + [target]].copy()
-                for k in ("pp_working_df", "pp_encoded", "pp_capped",
-                          "pp_skew_fixed", "pp_split_done", "pp_scaled", "pp_smote_done"):
+                for k in ("pp_working_df", "pp_encoded", "pp_enc_skipped", "pp_capped", "pp_cap_skipped",
+                          "pp_skew_fixed", "pp_yj_skipped", "pp_split_done", "pp_scaled", "pp_smote_done"):
                     st.session_state[k] = None if "df" in k else False
                 st.session_state.pp_working_df = None
                 for k in ("_snap_enc_before", "_snap_enc_after", "_snap_enc_cols",
@@ -1130,8 +1140,11 @@ def render_preprocessing():
                         st.markdown("<h3>After</h3>", unsafe_allow_html=True)
                         st.dataframe(st.session_state._snap_enc_after, use_container_width=True)
                     st.caption(f"Encoded columns: {', '.join(st.session_state._snap_enc_cols or [])}")
+        elif st.session_state.get("pp_enc_skipped"):
+            st.info(" Encoding skipped — no categorical columns or user opted out.")
         elif not enc_candidates:
             st.success("No categorical columns to encode (boolean columns are handled separately).")
+            st.session_state.pp_enc_skipped = True
         else:
             enc_method = st.selectbox("Encoding strategy",
                                       ["Label Encoding", "Frequency Encoding"],
@@ -1143,29 +1156,39 @@ def render_preprocessing():
                 with st.expander("Preview (before)"):
                     st.dataframe(working[enc_cols].head(8), use_container_width=True)
     
-            if st.button("  Apply Encoding", key="pp_run_enc", use_container_width=True, type="primary"):
-                if not enc_cols:
-                    st.warning("Select at least one column.")
-                else:
-                    with st.spinner("Encoding…"):
-                        snap_before = working[enc_cols].head(8).copy()
-                        w = working.copy()
-                        if enc_method == "Label Encoding":
-                            encoders = {}
-                            for c in enc_cols:
-                                le = LabelEncoder()
-                                w[c] = le.fit_transform(w[c].astype(str))
-                                encoders[c] = le
-                            st.session_state.label_encoder_visitor = encoders
-                        else:
-                            for c in enc_cols:
-                                freq = w[c].value_counts(normalize=True)
-                                w[c] = w[c].map(freq).astype(float)
-                        st.session_state._snap_enc_before = snap_before
-                        st.session_state._snap_enc_after = w[enc_cols].head(8).copy()
-                        st.session_state._snap_enc_cols = list(enc_cols)
-                        st.session_state.pp_working_df = w
-                        st.session_state.pp_encoded = True
+            bc1, bc2 = st.columns(2)
+            with bc1:
+                if st.button("  Apply Encoding", key="pp_run_enc", use_container_width=True, type="primary"):
+                    if not enc_cols:
+                        st.warning("Select at least one column.")
+                    else:
+                        with st.spinner("Encoding…"):
+                            snap_before = working[enc_cols].head(8).copy()
+                            w = working.copy()
+                            freq_maps = {}
+                            if enc_method == "Label Encoding":
+                                encoders = {}
+                                for c in enc_cols:
+                                    le = LabelEncoder()
+                                    w[c] = le.fit_transform(w[c].astype(str))
+                                    encoders[c] = le
+                                st.session_state.label_encoder_visitor = encoders
+                            else:
+                                for c in enc_cols:
+                                    freq = w[c].value_counts(normalize=True)
+                                    freq_maps[c] = freq.to_dict()
+                                    w[c] = w[c].map(freq).astype(float)
+                            st.session_state.pp_enc_method = enc_method
+                            st.session_state.pp_freq_maps = freq_maps if freq_maps else None
+                            st.session_state._snap_enc_before = snap_before
+                            st.session_state._snap_enc_after = w[enc_cols].head(8).copy()
+                            st.session_state._snap_enc_cols = list(enc_cols)
+                            st.session_state.pp_working_df = w
+                            st.session_state.pp_encoded = True
+                        st.rerun()
+            with bc2:
+                if st.button("  Skip Encoding", key="pp_skip_enc", use_container_width=True, type="secondary"):
+                    st.session_state.pp_enc_skipped = True
                     st.rerun()
     
         # Auto-convert booleans
@@ -1178,136 +1201,175 @@ def render_preprocessing():
     num_cols, _ = _detect_columns(working)
     feat_cols = [c for c in num_cols if c != target]
 
-    # ═════════════════════════════════════════════════════════════
-    # 2 · OUTLIER CAPPING
-    # ═════════════════════════════════════════════════════════════
+    # Helper: is step 1 resolved?
+    _step1_done = st.session_state.pp_encoded or st.session_state.get("pp_enc_skipped", False)
+
     with st.container(key="neo-pp-outlier", border=True):
         section_title("2 · Outlier Capping", LIME)
-        enable_cap = st.checkbox("Enable outlier capping", value=True, key="pp_cap_on")
-    
-        if st.session_state.pp_capped:
-            st.success(" Outlier capping already applied.")
-            if st.session_state._snap_cap_before is not None:
-                with st.expander("Before / After Statistics"):
-                    bc1, bc2 = st.columns(2)
-                    with bc1:
-                        st.markdown("<h3>Before</h3>", unsafe_allow_html=True)
-                        st.dataframe(st.session_state._snap_cap_before, use_container_width=True)
-                    with bc2:
-                        st.markdown("<h3>After</h3>", unsafe_allow_html=True)
-                        st.dataframe(st.session_state._snap_cap_after, use_container_width=True)
-        elif enable_cap and feat_cols:
-            cap_pct = st.slider("Percentile threshold", 90, 100, 99, key="pp_cap_pct")
-            cap_cols = st.multiselect("Columns to cap", feat_cols,
-                                      default=feat_cols, key="pp_cap_cols")
-            if st.button("  Cap Outliers", key="pp_run_cap", use_container_width=True, type="primary"):
-                if not cap_cols:
-                    st.warning("Select at least one column.")
-                else:
-                    with st.spinner("Capping outliers…"):
-                        w = st.session_state.pp_working_df.copy()
-                        snap_b = w[cap_cols].describe().T[["mean", "std", "max"]].round(2)
-                        for c in cap_cols:
-                            upper = w[c].quantile(cap_pct / 100)
-                            w[c] = w[c].clip(upper=upper)
-                        snap_a = w[cap_cols].describe().T[["mean", "std", "max"]].round(2)
-                        st.session_state._snap_cap_before = snap_b
-                        st.session_state._snap_cap_after = snap_a
-                        st.session_state.pp_working_df = w
-                        st.session_state.pp_capped = True
-                    st.rerun()
-        elif not feat_cols:
-            st.info("No numeric feature columns available.")
 
-    # ═════════════════════════════════════════════════════════════
-    # 3 · SKEWNESS CORRECTION
-    # ═════════════════════════════════════════════════════════════
+        if not _step1_done:
+            st.warning("Complete or skip **Step 1 · Categorical Encoding** first.")
+        else:
+            enable_cap = st.checkbox("Enable outlier capping", value=True, key="pp_cap_on")
+    
+            if st.session_state.pp_capped:
+                st.success(" Outlier capping already applied.")
+                if st.session_state._snap_cap_before is not None:
+                    with st.expander("Before / After Statistics"):
+                        bc1, bc2 = st.columns(2)
+                        with bc1:
+                            st.markdown("<h3>Before</h3>", unsafe_allow_html=True)
+                            st.dataframe(st.session_state._snap_cap_before, use_container_width=True)
+                        with bc2:
+                            st.markdown("<h3>After</h3>", unsafe_allow_html=True)
+                            st.dataframe(st.session_state._snap_cap_after, use_container_width=True)
+            elif st.session_state.get("pp_cap_skipped"):
+                st.info(" Outlier capping skipped.")
+            elif enable_cap and feat_cols:
+                cap_pct = st.slider("Percentile threshold", 90, 100, 99, key="pp_cap_pct")
+                cap_cols = st.multiselect("Columns to cap", feat_cols,
+                                          default=feat_cols, key="pp_cap_cols")
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.button("  Cap Outliers", key="pp_run_cap", use_container_width=True, type="primary"):
+                        if not cap_cols:
+                            st.warning("Select at least one column.")
+                        else:
+                            with st.spinner("Capping outliers\u2026"):
+                                w = st.session_state.pp_working_df.copy()
+                                snap_b = w[cap_cols].describe().T[["mean", "std", "max"]].round(2)
+                                for c in cap_cols:
+                                    upper = w[c].quantile(cap_pct / 100)
+                                    w[c] = w[c].clip(upper=upper)
+                                snap_a = w[cap_cols].describe().T[["mean", "std", "max"]].round(2)
+                                st.session_state.pp_cap_bounds = {c: float(w[c].max()) for c in cap_cols}
+                                st.session_state._snap_cap_before = snap_b
+                                st.session_state._snap_cap_after = snap_a
+                                st.session_state.pp_working_df = w
+                                st.session_state.pp_capped = True
+                            st.rerun()
+                with bc2:
+                    if st.button("  Skip Outlier Capping", key="pp_skip_cap", use_container_width=True, type="secondary"):
+                        st.session_state.pp_cap_skipped = True
+                        st.rerun()
+            elif not enable_cap:
+                if st.button("  Skip Outlier Capping", key="pp_skip_cap2", use_container_width=True, type="secondary"):
+                    st.session_state.pp_cap_skipped = True
+                    st.rerun()
+            elif not feat_cols:
+                st.info("No numeric feature columns available.")
+                st.session_state.pp_cap_skipped = True
+
+
+    # Helper: is step 2 resolved?
+    _step2_done = st.session_state.pp_capped or st.session_state.get("pp_cap_skipped", False)
+
     with st.container(key="neo-pp-skewness", border=True):
         section_title("3 · Skewness Correction (Yeo-Johnson)", MINT)
-        enable_yj = st.checkbox("Enable Yeo-Johnson transform", value=True, key="pp_yj_on")
+
+        if not _step2_done:
+            st.warning("Complete or skip **Step 2 · Outlier Capping** first.")
+        else:
+            enable_yj = st.checkbox("Enable Yeo-Johnson transform", value=True, key="pp_yj_on")
     
-        working = st.session_state.pp_working_df
-        num_cols, _ = _detect_columns(working)
-        feat_cols = [c for c in num_cols if c != target]
+            working = st.session_state.pp_working_df
+            num_cols, _ = _detect_columns(working)
+            feat_cols = [c for c in num_cols if c != target]
     
-        if st.session_state.pp_skew_fixed:
-            st.success(" Yeo-Johnson already applied.")
-            if st.session_state._snap_yj_before is not None:
-                with st.expander("View Before / After Skewness"):
-                    bc1, bc2 = st.columns(2)
-                    with bc1:
-                        st.markdown("<h3>Before</h3>", unsafe_allow_html=True)
-                        st.dataframe(st.session_state._snap_yj_before, use_container_width=True)
-                    with bc2:
-                        st.markdown("<h3>After</h3>", unsafe_allow_html=True)
-                        st.dataframe(st.session_state._snap_yj_after, use_container_width=True)
-        elif enable_yj and feat_cols:
-            yj_cols = st.multiselect("Columns for Yeo-Johnson", feat_cols,
-                                      default=feat_cols[:min(6, len(feat_cols))],
-                                      key="pp_yj_cols")
-            if yj_cols:
-                with st.expander("Skewness before transform"):
-                    sk_before = working[yj_cols].skew().sort_values(ascending=False)
-                    st.dataframe(sk_before.rename("skewness").to_frame(), use_container_width=True)
+            if st.session_state.pp_skew_fixed:
+                st.success(" Yeo-Johnson already applied.")
+                if st.session_state._snap_yj_before is not None:
+                    with st.expander("View Before / After Skewness"):
+                        bc1, bc2 = st.columns(2)
+                        with bc1:
+                            st.markdown("<h3>Before</h3>", unsafe_allow_html=True)
+                            st.dataframe(st.session_state._snap_yj_before, use_container_width=True)
+                        with bc2:
+                            st.markdown("<h3>After</h3>", unsafe_allow_html=True)
+                            st.dataframe(st.session_state._snap_yj_after, use_container_width=True)
+            elif st.session_state.get("pp_yj_skipped"):
+                st.info(" Skewness correction skipped.")
+            elif enable_yj and feat_cols:
+                yj_cols = st.multiselect("Columns for Yeo-Johnson", feat_cols,
+                                          default=feat_cols[:min(6, len(feat_cols))],
+                                          key="pp_yj_cols")
+                if yj_cols:
+                    with st.expander("Skewness before transform"):
+                        sk_before = working[yj_cols].skew().sort_values(ascending=False)
+                        st.dataframe(sk_before.rename("skewness").to_frame(), use_container_width=True)
     
-            if st.button("  Run Yeo-Johnson", key="pp_run_yj", use_container_width=True, type="primary"):
-                if not yj_cols:
-                    st.warning("Select at least one column.")
-                else:
-                    with st.spinner("Applying Yeo-Johnson…"):
-                        w = st.session_state.pp_working_df.copy()
-                        snap_b = w[yj_cols].skew().sort_values(ascending=False)
-                        pt = PowerTransformer(method="yeo-johnson")
-                        w[yj_cols] = pt.fit_transform(w[yj_cols])
-                        snap_a = w[yj_cols].skew().sort_values(ascending=False)
-                        st.session_state._snap_yj_before = snap_b.rename("skewness").to_frame()
-                        st.session_state._snap_yj_after = snap_a.rename("skewness").to_frame()
-                        st.session_state.pp_working_df = w
-                        st.session_state.power_transformer = pt
-                        st.session_state.pp_skew_fixed = True
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.button("  Run Yeo-Johnson", key="pp_run_yj", use_container_width=True, type="primary"):
+                        if not yj_cols:
+                            st.warning("Select at least one column.")
+                        else:
+                            with st.spinner("Applying Yeo-Johnson…"):
+                                w = st.session_state.pp_working_df.copy()
+                                snap_b = w[yj_cols].skew().sort_values(ascending=False)
+                                pt = PowerTransformer(method="yeo-johnson")
+                                w[yj_cols] = pt.fit_transform(w[yj_cols])
+                                snap_a = w[yj_cols].skew().sort_values(ascending=False)
+                                st.session_state._snap_yj_before = snap_b.rename("skewness").to_frame()
+                                st.session_state._snap_yj_after = snap_a.rename("skewness").to_frame()
+                                st.session_state.pp_working_df = w
+                                st.session_state.pp_yj_columns = list(yj_cols)
+                                st.session_state.power_transformer = pt
+                                st.session_state.pp_skew_fixed = True
+                            st.rerun()
+                with bc2:
+                    if st.button("  Skip Skewness Fix", key="pp_skip_yj", use_container_width=True, type="secondary"):
+                        st.session_state.pp_yj_skipped = True
+                        st.rerun()
+            elif not enable_yj:
+                if st.button("  Skip Skewness Fix", key="pp_skip_yj2", use_container_width=True, type="secondary"):
+                    st.session_state.pp_yj_skipped = True
                     st.rerun()
 
-    # ═════════════════════════════════════════════════════════════
-    # 4 · TRAIN / TEST SPLIT
-    # ═════════════════════════════════════════════════════════════
+    # Helper: is step 3 resolved?
+    _step3_done = st.session_state.pp_skew_fixed or st.session_state.get("pp_yj_skipped", False)
+
     with st.container(key="neo-pp-split", border=True):
         section_title("4 · Train / Test Split", PINK)
-    
-        working = st.session_state.pp_working_df
-    
-        if st.session_state.pp_split_done and st.session_state.X_train is not None:
-            st.success(" Split already completed.")
-            cfg = st.session_state._snap_split_cfg or {}
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Train", f"{np.array(st.session_state.X_train).shape[0]:,} rows ({cfg.get('train_pct', '')})")
-            c2.metric("Test", f"{np.array(st.session_state.X_test).shape[0]:,} rows ({cfg.get('test_pct', '')})")
-            c3.metric("Random State", str(cfg.get("rs", "42")))
+
+        if not _step3_done:
+            st.warning("Complete or skip **Step 3 · Skewness Correction** first.")
         else:
-            sc1, sc2 = st.columns(2)
-            test_size = sc1.slider("Test size (%)", 10, 50, 20, step=5, key="pp_test") / 100
-            rand_state = sc2.number_input("Random state", value=42, step=1, key="pp_rs")
+            working = st.session_state.pp_working_df
     
-            if st.button("  Split Data", key="pp_run_split", use_container_width=True, type="primary"):
-                with st.spinner("Splitting…"):
-                    X = working.drop(columns=[target])
-                    y = working[target]
-                    stratify_y = y if y.nunique() <= 20 else None
-                    X_tr, X_te, y_tr, y_te = train_test_split(
-                        X, y, test_size=test_size,
-                        random_state=int(rand_state), stratify=stratify_y,
-                    )
-                    st.session_state.X_train = X_tr
-                    st.session_state.X_test = X_te
-                    st.session_state.y_train = y_tr
-                    st.session_state.y_test = y_te
-                    st.session_state.selected_features = X_tr.columns.tolist()
-                    st.session_state.pp_split_done = True
-                    st.session_state._snap_split_cfg = {
-                        "train_pct": f"{100 - int(test_size*100)}%",
-                        "test_pct": f"{int(test_size*100)}%",
-                        "rs": int(rand_state),
-                    }
-                st.rerun()
+            if st.session_state.pp_split_done and st.session_state.X_train is not None:
+                st.success(" Split already completed.")
+                cfg = st.session_state._snap_split_cfg or {}
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Train", f"{np.array(st.session_state.X_train).shape[0]:,} rows ({cfg.get('train_pct', '')})")
+                c2.metric("Test", f"{np.array(st.session_state.X_test).shape[0]:,} rows ({cfg.get('test_pct', '')})")
+                c3.metric("Random State", str(cfg.get("rs", "42")))
+            else:
+                sc1, sc2 = st.columns(2)
+                test_size = sc1.slider("Test size (%)", 10, 50, 20, step=5, key="pp_test") / 100
+                rand_state = sc2.number_input("Random state", value=42, step=1, key="pp_rs")
+    
+                if st.button("  Split Data", key="pp_run_split", use_container_width=True, type="primary"):
+                    with st.spinner("Splitting…"):
+                        X = working.drop(columns=[target])
+                        y = working[target]
+                        stratify_y = y if y.nunique() <= 20 else None
+                        X_tr, X_te, y_tr, y_te = train_test_split(
+                            X, y, test_size=test_size,
+                            random_state=int(rand_state), stratify=stratify_y,
+                        )
+                        st.session_state.X_train = X_tr
+                        st.session_state.X_test = X_te
+                        st.session_state.y_train = y_tr
+                        st.session_state.y_test = y_te
+                        st.session_state.selected_features = X_tr.columns.tolist()
+                        st.session_state.pp_split_done = True
+                        st.session_state._snap_split_cfg = {
+                            "train_pct": f"{100 - int(test_size*100)}%",
+                            "test_pct": f"{int(test_size*100)}%",
+                            "rs": int(rand_state),
+                        }
+                    st.rerun()
 
     # ═════════════════════════════════════════════════════════════
     # 5 · FEATURE SCALING
@@ -1316,7 +1378,7 @@ def render_preprocessing():
         section_title("5 · Feature Scaling", ORANGE)
     
         if not st.session_state.pp_split_done:
-            st.info(" Complete the Train/Test Split first.")
+            st.warning("Complete **Step 4 · Train / Test Split** first.")
         elif st.session_state.pp_scaled:
             st.success(" Scaling already applied.")
             if st.session_state._snap_scale_before is not None:
@@ -1360,7 +1422,7 @@ def render_preprocessing():
         section_title("6 · Class Imbalance (SMOTE)", PURPLE)
     
         if not st.session_state.pp_scaled:
-            st.info(" Complete Scaling first.")
+            st.warning("Complete **Step 5 · Feature Scaling** first.")
         elif st.session_state.pp_smote_done:
             st.success(" SMOTE already applied.")
             if st.session_state._snap_smote_before is not None:
@@ -1809,59 +1871,169 @@ def render_prediction():
             }
             for k, v in artifacts.items():
                 st.markdown(f"- **{k}**: {v}")
-    
+
     # ═════════════════════════════════════════════════════════════
-    # 2 · DYNAMIC INPUT FORM
+    # 2 · RAW INPUT FORM (human-readable values)
     # ═════════════════════════════════════════════════════════════
+    raw_df = st.session_state.raw_data
+    enc_cols_list = st.session_state._snap_enc_cols or []
+    target = st.session_state.target_col or "Revenue"
+
     with st.container(key="neo-pred-input", border=True):
-        section_title("2 · Input Features", YELLOW)
-        st.caption("Fill in the feature values below. All fields are dynamically generated from your selected features.")
-    
-        input_values = {}
-    
-        X_train = st.session_state.X_train
-        if X_train is not None:
-            if isinstance(X_train, pd.DataFrame):
-                ref_df = X_train
-            else:
-                ref_df = pd.DataFrame(np.array(X_train), columns=feat_names[:np.array(X_train).shape[1]])
-        else:
-            ref_df = None
-    
+        section_title("2 · Input Features (Raw Values)", YELLOW)
+        st.caption("Enter values as they appear in the original dataset. "
+                   "The app will automatically encode, transform, and scale them before prediction. "
+                   "Not sure what a feature means? Check the **Feature Glossary** below.")
+
+        raw_input = {}
         cols = st.columns(2)
         for i, feat in enumerate(feat_names):
             col = cols[i % 2]
             with col:
-                if ref_df is not None and feat in ref_df.columns:
-                    default_val = float(ref_df[feat].median())
-                    min_val = float(ref_df[feat].min())
-                    max_val = float(ref_df[feat].max())
-                    input_values[feat] = st.number_input(
-                        f" {feat}",
-                        value=round(default_val, 4),
-                        step=round((max_val - min_val) / 100, 4) if max_val != min_val else 0.01,
-                        key=f"pred_{feat}",
-                    )
+                # --- Categorical feature (was encoded) ---
+                if feat in enc_cols_list and raw_df is not None and feat in raw_df.columns:
+                    unique_vals = sorted(raw_df[feat].dropna().unique().astype(str).tolist())
+                    raw_input[feat] = st.selectbox(
+                        feat, unique_vals, key=f"pred_{feat}")
+
+                # --- Boolean feature ---
+                elif raw_df is not None and feat in raw_df.columns and raw_df[feat].dtype == "bool":
+                    raw_input[feat] = st.radio(
+                        feat, [False, True], format_func=lambda x: "Yes" if x else "No",
+                        horizontal=True, key=f"pred_{feat}")
+
+                # --- Numerical feature ---
+                elif raw_df is not None and feat in raw_df.columns:
+                    col_data = raw_df[feat].dropna()
+                    min_v = float(col_data.min())
+                    max_v = float(col_data.max())
+                    med_v = float(col_data.median())
+                    step_v = round((max_v - min_v) / 100, 4) if max_v != min_v else 0.01
+                    # Use integer step for integer-valued features
+                    if raw_df[feat].dtype in ("int64", "int32"):
+                        raw_input[feat] = st.number_input(
+                            feat, min_value=int(min_v), max_value=int(max_v) + 1,
+                            value=int(med_v), step=1, key=f"pred_{feat}")
+                    else:
+                        raw_input[feat] = st.number_input(
+                            feat, value=round(med_v, 4), step=step_v,
+                            key=f"pred_{feat}")
                 else:
-                    input_values[feat] = st.number_input(
-                        f" {feat}", value=0.0, step=0.01, key=f"pred_{feat}",
-                    )
+                    raw_input[feat] = st.number_input(
+                        feat, value=0.0, step=0.01, key=f"pred_{feat}")
 
     # ═════════════════════════════════════════════════════════════
-    # 3 · PREDICT
+    # FEATURE GLOSSARY
+    # ═════════════════════════════════════════════════════════════
+    with st.container(key="neo-pred-glossary", border=True):
+        section_title("Feature Glossary", ORANGE)
+        st.caption("Quick reference for each feature in the dataset.")
+        with st.expander("Click to expand glossary"):
+            st.markdown("""
+| Feature | Description |
+|---------|-------------|
+| **Administrative** | Number of pages visited in the "Account Management" section |
+| **Administrative_Duration** | Total time (seconds) spent on Administrative pages |
+| **Informational** | Number of pages visited in the "About Us / FAQ" section |
+| **Informational_Duration** | Total time (seconds) spent on Informational pages |
+| **ProductRelated** | Number of product pages viewed during the session |
+| **ProductRelated_Duration** | Total time (seconds) spent browsing product pages |
+| **BounceRates** | Average bounce rate of pages visited (% who left immediately) |
+| **ExitRates** | Average exit rate of pages visited (% who left from that page) |
+| **PageValues** | Average value of pages visited, based on completed transactions |
+| **SpecialDay** | Closeness to a special day (e.g., Valentine's Day). 0 = not close, 1 = on the day |
+| **Month** | Month of the browsing session (e.g., Feb, Mar, Nov) |
+| **OperatingSystems** | OS category code used by the visitor |
+| **Browser** | Browser category code used by the visitor |
+| **Region** | Geographic region code of the visitor |
+| **TrafficType** | Traffic source category (e.g., direct, referral, search) |
+| **VisitorType** | Returning Visitor, New Visitor, or Other |
+| **Weekend** | Whether the session occurred on a weekend (True/False) |
+            """)
+
+    # ═════════════════════════════════════════════════════════════
+    # 3 · PREPROCESS & PREDICT
     # ═════════════════════════════════════════════════════════════
     with st.container(key="neo-pred-run", border=True):
         section_title("3 · Run Prediction", LIME)
-    
+
+        with st.expander("Preprocessing Pipeline Summary"):
+            steps_text = []
+            if st.session_state.pp_encoded:
+                steps_text.append(f"1. **Categorical Encoding** ({st.session_state.pp_enc_method}) on columns: {', '.join(enc_cols_list)}")
+            if st.session_state.pp_capped:
+                steps_text.append("2. **Outlier Capping**")
+            if st.session_state.pp_skew_fixed:
+                yj_cols_display = st.session_state.pp_yj_columns or []
+                steps_text.append(f"3. **Yeo-Johnson** on {len(yj_cols_display)} columns")
+            steps_text.append(f"4. **Feature Scaling** ({type(st.session_state.scaler).__name__})")
+            for s in steps_text:
+                st.markdown(f"- {s}")
+
         if st.button("  Predict", key="pred_run", use_container_width=True, type="primary"):
-            with st.spinner("Running inference…"):
-                input_arr = np.array([[input_values.get(f, 0.0) for f in feat_names]])
-    
+            with st.spinner("Preprocessing and running inference..."):
+                # --- Build a single-row DataFrame with raw values ---
+                row = {}
+                for feat in feat_names:
+                    row[feat] = raw_input.get(feat, 0.0)
+                input_df = pd.DataFrame([row])
+
+                # --- Step 1: Encode categoricals ---
+                if st.session_state.pp_encoded and enc_cols_list:
+                    enc_method = st.session_state.pp_enc_method
+                    for c in enc_cols_list:
+                        if c not in input_df.columns:
+                            continue
+                        if enc_method == "Label Encoding":
+                            le = st.session_state.label_encoder_visitor.get(c)
+                            if le is not None:
+                                val_str = str(input_df[c].iloc[0])
+                                if val_str in le.classes_:
+                                    input_df[c] = le.transform([val_str])[0]
+                                else:
+                                    input_df[c] = -1  # unknown category
+                        else:  # Frequency Encoding
+                            fmaps = st.session_state.pp_freq_maps or {}
+                            fm = fmaps.get(c, {})
+                            val_str = str(input_df[c].iloc[0])
+                            input_df[c] = fm.get(val_str, 0.0)
+
+                # Convert booleans to int
+                for c in input_df.columns:
+                    if input_df[c].dtype == "bool":
+                        input_df[c] = input_df[c].astype(int)
+
+                # Ensure all numeric
+                input_df = input_df.apply(pd.to_numeric, errors="coerce").fillna(0)
+
+                # --- Step 2: Outlier capping (clip to saved bounds) ---
+                cap_bounds = st.session_state.pp_cap_bounds
+                if st.session_state.pp_capped and cap_bounds:
+                    for c, upper in cap_bounds.items():
+                        if c in input_df.columns:
+                            input_df[c] = input_df[c].clip(upper=upper)
+
+                # --- Step 3: Yeo-Johnson transform ---
+                pt = st.session_state.power_transformer
+                yj_cols = st.session_state.pp_yj_columns
+                if st.session_state.pp_skew_fixed and pt is not None and yj_cols:
+                    yj_present = [c for c in yj_cols if c in input_df.columns]
+                    if yj_present:
+                        input_df[yj_present] = pt.transform(input_df[yj_present])
+
+                # --- Step 4: Feature scaling ---
+                scaler = st.session_state.scaler
+                if scaler is not None:
+                    input_arr = scaler.transform(input_df[feat_names].values)
+                else:
+                    input_arr = input_df[feat_names].values
+
+                # --- Predict ---
                 prediction = model.predict(input_arr)[0]
                 probabilities = model.predict_proba(input_arr)[0] if hasattr(model, "predict_proba") else None
-    
+
                 result = {
-                    "input": {k: round(v, 4) for k, v in input_values.items()},
+                    "input_raw": {k: v for k, v in raw_input.items()},
                     "prediction": int(prediction),
                     "probabilities": probabilities.tolist() if probabilities is not None else None,
                 }
