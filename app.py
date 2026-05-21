@@ -214,9 +214,9 @@ def inject_global_css():
 
     /* ── Typography ──────────────────────────────────────────────── */
     h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif !important; text-transform: uppercase; color: var(--text-primary); }
-    h1 { font-size:4rem; font-weight:800; letter-spacing:-0.04em; margin-bottom: 2rem; line-height: 1.1; }
-    h2 { font-size:2.8rem; font-weight:800; letter-spacing:-0.03em; margin-top: 2rem; margin-bottom: 1.5rem; line-height: 1.1; border-bottom: none; }
-    h3 { font-size:1.8rem; font-weight:800; margin-bottom: 1rem; }
+    h1 { font-size:4rem; font-weight:800; letter-spacing:-0.04em; margin-bottom: 1.5rem; line-height: 1.1; }
+    h2 { font-size:2.8rem; font-weight:800; letter-spacing:-0.03em; margin-top: 1.5rem; margin-bottom: 1rem; line-height: 1.1; border-bottom: none; }
+    h3 { font-size:1.8rem; font-weight:800; margin-bottom: 0.5rem; }
     
     p, li, label { font-family:'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 1.15rem; color: var(--text-primary); line-height: 1.6; }
     code, [data-testid="stMetricValue"] {
@@ -237,6 +237,23 @@ def inject_global_css():
         background-color: var(--surface) !important;
         border-right: 5px solid var(--border);
     }
+    section[data-testid="stSidebar"] > div {
+        overflow-y: hidden !important;
+    }
+    [data-testid="stSidebarUserContent"], [data-testid="stSidebarNav"] {
+        overflow-y: hidden !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0.5rem !important;
+    }
+    
+    /* Disable decorative overflow elements in sidebar to prevent cropping */
+    section[data-testid="stSidebar"] button::after,
+    section[data-testid="stSidebar"] .stProgress::after {
+        display: none !important;
+        content: none !important;
+    }
+
     section[data-testid="stSidebar"] * {
         color: var(--text-primary) !important;
         font-weight: 700;
@@ -244,22 +261,23 @@ def inject_global_css():
     section[data-testid="stSidebar"] hr {
         border-color: var(--border) !important;
         border-width: 4px !important;
+        margin: 1rem 0 !important;
     }
     
     /* ── Buttons (General Neo-Brutalism style) ───────────────────── */
     button[kind="primary"], button[kind="secondary"] {
         border: 4px solid var(--border) !important;
         border-radius: 0 !important;
-        padding: 1.5rem 2rem !important;
+        padding: 0.75rem 1.5rem !important;
         font-weight: 800 !important;
-        font-size: 1.25rem !important;
+        font-size: 1.15rem !important;
         font-family: 'Syne', sans-serif !important;
         text-transform: uppercase;
-        box-shadow: 6px 6px 0px var(--border) !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
         transition: all 0.1s ease-in-out;
         cursor: pointer;
         width: 100% !important;
-        min-height: 4.5rem !important;
+        min-height: 3rem !important;
         white-space: normal !important;
         word-wrap: break-word !important;
         color: var(--border) !important;
@@ -300,11 +318,12 @@ def inject_global_css():
     /* Sidebar Buttons Specific Override -> White to Lime */
     section[data-testid="stSidebar"] button[kind="secondary"] {
         background-color: #FFFFFF !important;
-        padding: 1rem !important;
-        min-height: 3rem !important;
+        padding: 0.5rem 1rem !important;
+        min-height: 2.5rem !important;
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-size: 1rem !important;
         text-align: left !important;
+        margin-bottom: 0.25rem !important;
     }
     section[data-testid="stSidebar"] button[kind="secondary"]:hover:not(:disabled) {
         background-color: var(--lime) !important;
@@ -322,19 +341,19 @@ def inject_global_css():
     [class*="st-key-neo-"] {
         background-color: #F7F3EB !important;
         border: 4px solid #000000 !important;
-        box-shadow: 8px 8px 0px #000000 !important;
+        box-shadow: 4px 4px 0px #000000 !important;
         border-radius: 0 !important;
-        padding: 1.5rem !important;
-        margin-bottom: 2rem !important;
+        padding: 1rem !important;
+        margin-bottom: 1rem !important;
     }
 
     /* Komponen standard dengan padding utuh */
     [data-testid="metric-container"], [data-testid="stFileUploader"], [data-testid="stImage"] {
         background: var(--surface) !important;
         border: 4px solid var(--border) !important;
-        padding: 1.25rem !important;
-        box-shadow: 6px 6px 0px var(--border) !important;
-        margin-bottom: 1.5rem !important;
+        padding: 0.75rem !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
+        margin-bottom: 1rem !important;
         border-radius: 0 !important;
     }
 
@@ -343,8 +362,8 @@ def inject_global_css():
         background: var(--surface) !important;
         border: 4px solid var(--border) !important;
         padding: 0.25rem 0.5rem !important;
-        box-shadow: 6px 6px 0px var(--border) !important;
-        margin-bottom: 1.5rem !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
+        margin-bottom: 1rem !important;
         border-radius: 0 !important;
     }
 
@@ -353,8 +372,8 @@ def inject_global_css():
         background: var(--surface) !important;
         border: 4px solid var(--border) !important;
         padding: 0px !important;
-        box-shadow: 6px 6px 0px var(--border) !important;
-        margin-bottom: 1.5rem !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
+        margin-bottom: 1rem !important;
         border-radius: 0 !important;
     }
     
@@ -370,12 +389,12 @@ def inject_global_css():
         background-color: var(--surface) !important;
         border: 4px solid var(--border) !important;
         border-radius: 0 !important;
-        box-shadow: 4px 4px 0px var(--border) !important;
-        padding: 0.5rem;
+        box-shadow: 3px 3px 0px var(--border) !important;
+        padding: 0.25rem 0.5rem;
         font-weight: 700 !important;
         font-size: 1.1rem !important;
         color: var(--text-primary) !important;
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.25rem !important;
     }
     
     .stCheckbox label, [data-testid="stRadio"] label {
@@ -392,10 +411,10 @@ def inject_global_css():
         border-bottom: none;
         background: var(--surface);
         font-weight: 800;
-        font-size: 1.2rem;
-        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        padding: 0.5rem 1.5rem;
         margin-right: 0.5rem;
-        box-shadow: 4px 4px 0px var(--border);
+        box-shadow: 3px 3px 0px var(--border);
         border-radius: 0;
     }
     .stTabs [aria-selected="true"] {
@@ -408,16 +427,16 @@ def inject_global_css():
     /* ── Expanders ────────────────────────────────────────────────── */
     [data-testid="stExpander"] summary {
         font-weight: 800 !important;
-        font-size: 1.2rem !important;
-        padding: 1rem !important;
+        font-size: 1.15rem !important;
+        padding: 0.5rem 1rem !important;
     }
 
     /* ── Alerts ───────────────────────────────────────────────────── */
     .stAlert {
         background-color: var(--mint) !important;
         border: 4px solid var(--border) !important;
-        box-shadow: 6px 6px 0px var(--border) !important;
-        padding: 1.5rem !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
+        padding: 1rem !important;
         font-weight: 800;
         color: #000000 !important;
     }
@@ -431,16 +450,16 @@ def inject_global_css():
         background: #FFFFFF;
         border: 4px solid var(--border);
         border-radius: 0;
-        height: 28px;
+        height: 18px;
     }
 
     /* ── Section Containers (Container-Container) ────────────────── */
     [data-testid="stVerticalBlockBorderWrapper"] {
         background-color: var(--surface) !important;
         border: 4px solid var(--border) !important;
-        box-shadow: 8px 8px 0px var(--border) !important;
-        padding: 2rem !important;
-        margin-bottom: 2rem !important;
+        box-shadow: 4px 4px 0px var(--border) !important;
+        padding: 1.25rem !important;
+        margin-bottom: 1.5rem !important;
         border-radius: 0 !important;
     }
     
@@ -449,17 +468,17 @@ def inject_global_css():
         background: #FFFFFF;
         border: 4px solid #000000;
         border-radius: 0;
-        padding: 1.5rem 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 10px 10px 0px #000000;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 6px 6px 0px #000000;
     }
     .neo-hero {
         background: var(--lime);
         border: 4px solid #000000;
         border-radius: 0;
-        padding: 2rem 2.5rem;
-        margin-bottom: 2rem;
-        box-shadow: 8px 8px 0px #000000;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 6px 6px 0px #000000;
     }
     .neo-hero h1 { margin-bottom: 0.25rem; font-size: 3rem; }
     .neo-hero p  { margin: 0; font-size: 1.25rem; font-weight: 800; }
@@ -467,8 +486,8 @@ def inject_global_css():
     .neo-result {
         border: 4px solid #000000;
         border-radius: 0;
-        padding: 2rem 3rem;
-        box-shadow: 10px 10px 0px #000000;
+        padding: 1.5rem 2rem;
+        box-shadow: 6px 6px 0px #000000;
         text-align: left;
     }
     .neo-result h2 { margin-bottom: 0.5rem; font-size: 3rem; }
@@ -477,11 +496,11 @@ def inject_global_css():
         background: #FFFFFF;
         border: 4px solid var(--border);
         border-radius: 0;
-        padding: 4rem 3rem;
+        padding: 2.5rem 2rem;
         text-align: center;
         color: var(--text-primary);
-        margin: 3rem 0;
-        box-shadow: 10px 10px 0px var(--border);
+        margin: 2rem 0;
+        box-shadow: 6px 6px 0px var(--border);
         font-weight: 800;
     }
     .placeholder-box h3 { color: var(--text-primary); font-size: 2.5rem; }
