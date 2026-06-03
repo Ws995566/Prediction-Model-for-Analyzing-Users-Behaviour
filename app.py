@@ -20,8 +20,9 @@ from sklearn.model_selection import train_test_split
 try:
     from imblearn.over_sampling import SMOTE
     _HAS_SMOTE = True
-except ImportError:
+except ImportError as e:
     _HAS_SMOTE = False
+    st.error(f"Failed to import SMOTE because: {e}") 
 
 matplotlib.use("Agg")  # non-interactive backend for Streamlit
 
